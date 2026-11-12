@@ -1,42 +1,37 @@
 <?php
-// Разрешаем запросы с любого источника (для корректной работы fetch)
+header('Content-Type: application/json');
+
+// Разрешаем запросы только с вашего сайта (базовая защита)
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json; charset=UTF-8");
 
-// Если это предзапрос OPTIONS, просто возвращаем успех
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
-
-// Проверяем, что запрос именно POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Получаем данные из формы
-    $name = isset($_POST['name']) ? trim($_POST['name']) : '';
-    $phone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
-    $service = isset($_POST['service']) ? trim($_POST['service']) : '';
-    $message = isset($_POST['message']) ? trim($_POST['message']) : '';
+    // Получаем данные из формы и очищаем их
+    $name = trim($_POST['name'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $service = trim($_POST['service'] ?? 'Не указана');
+    $message = trim($_POST['message'] ?? 'Без комментария');
 
-    // Простая валидация
+    // Проверка на заполненность обязательных полей
     if (empty($name) || empty($phone)) {
-        echo json_encode(["status" => "error", "message" => "Имя и телефон обязательны"]);
+        echo json_encode(['status' => 'error', 'message' => 'Заполните имя и телефон']);
         exit;
     }
 
-    // === ЗДЕСЬ МОЖНО ДОБАВИТЬ ОТПРАВКУ НА ПОЧТУ ===
-    // $to = "vash_email@example.com";
-    // $subject = "Новая заявка с сайта Магнесия";
-    // $body = "Имя: $name\nТелефон: $phone\nУслуга: $service\nСообщение: $message";
-    // mail($to, $subject, $body);
+    // Формируем дату и строку для записи
+    // ВАЖНО: Мы используем разделитель " | " ровно два раза, 
+    // чтобы ваш admin.php (который ждет 3 части) корректно это прочитал.
+    $date = date('d.m.Y H:i');
+    $line = htmlspecialchars($name) . " | " . htmlspecialchars($phone) . " | " . htmlspecialchars($date . " (Услуга: " . $service . ")");
 
-    // Возвращаем успешный ответ для вашего JavaScript
-    echo json_encode(["status" => "success"]);
-    exit;
+    $data_file = 'zapisi.txt';
+
+    // Пытаемся записать данные в конец файла
+    if (file_put_contents($data_file, $line . PHP_EOL, FILE_APPEND | LOCK_EX)) {
+        echo json_encode(['status' => 'success', 'message' => 'Заявка успешно отправлена']);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'Ошибка сервера при сохранении']);
+    }
+} else {
+    echo json_encode(['status' => 'error', 'message' => 'Неверный метод запроса']);
 }
-
-// Если запрос не POST
-http_response_code(405);
-echo json_encode(["status" => "error", "message" => "Метод не разрешен"]);
 ?>
